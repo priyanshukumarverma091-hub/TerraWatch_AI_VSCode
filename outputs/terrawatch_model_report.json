@@ -1,0 +1,28 @@
+{
+  "project": "TerraWatch AI",
+  "latest_year": 2021,
+  "pixels_analyzed": 3083,
+  "flagged_pixels": 184,
+  "flagged_percent": 5.97,
+  "years_used": [
+    "2015",
+    "2016",
+    "2017",
+    "2018",
+    "2019",
+    "2020",
+    "2021"
+  ],
+  "models": [
+    "Robust temporal NDVI baseline",
+    "Isolation Forest",
+    "Dense Autoencoder with actual reconstruction-error scoring"
+  ],
+  "validation_status": "Historical deviation backtest generated; real-world accuracy not established without labeled ground-truth observations.",
+  "warning": "Anomaly flags are investigation priorities, not crop-disease diagnoses, confirmed land degradation, or calibrated probabilities.",
+  "files": [
+    "/content/terrawatch_rajasthan_results_completed.csv",
+    "/content/terrawatch_historical_backtest.csv",
+    "/content/terrawatch_anomaly_map.png"
+  ]
+}

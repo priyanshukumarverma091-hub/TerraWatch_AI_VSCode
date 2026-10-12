@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>TerraWatch AI | NDVI Anomaly Monitor</title>
+
+  <!-- Libraries loaded from public CDNs -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <style>
+    :root {
+      --bg: #0b1220; --panel: #121c2e; --panel2: #17243a;
+      --text: #edf4ff; --muted: #9fb0ca; --line: #263750;
+      --accent: #60d6a4; --accent2: #4aa7ff; --danger: #ff7272;
+      --warning: #ffc766; --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 4%; border-bottom:1px solid var(--line); background:#0e1727; position:sticky; top:0; z-index:1000; }
+    .brand { display:flex; align-items:center; gap:12px; font-weight:800; letter-spacing:.2px; }
+    .logo { width:42px; height:42px; border-radius:13px; display:grid; place-items:center; background:linear-gradient(135deg,#60d6a4,#4aa7ff); color:#07111e; font-size:22px; }
+    .brand small { display:block; color:var(--muted); font-weight:500; font-size:12px; margin-top:3px; }
+    .status { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+    .dot { width:8px; height:8px; border-radius:50%; background:var(--warning); display:inline-block; }
+    .wrap { max-width:1440px; margin:auto; padding:24px 4% 48px; }
+    .hero { display:flex; justify-content:space-between; align-items:flex-end; gap:24px; margin-bottom:24px; }
+    h1 { font-size:clamp(28px,4vw,42px); line-height:1.08; margin:0 0 10px; letter-spacing:-1.2px; }
+    .sub { color:var(--muted); max-width:760px; line-height:1.6; }
+    .pill { border:1px solid var(--line); color:var(--muted); border-radius:999px; padding:8px 12px; font-size:12px; white-space:nowrap; }
+    .controls { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:12px; padding:16px; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); margin-bottom:18px; }
+    .field label { display:block; color:var(--muted); font-size:12px; margin:0 0 7px; }
+    .field input, .field select { width:100%; padding:11px 12px; background:#0b1424; color:var(--text); border:1px solid var(--line); border-radius:10px; outline:none; }
+    .field input:focus, .field select:focus { border-color:var(--accent2); }
+    .btn { border:0; border-radius:10px; padding:11px 14px; font-weight:750; transition:.15s; }
+    .btn:disabled { opacity:.55; cursor:wait; }
+    .primary { background:var(--accent); color:#07151a; }
+    .secondary { background:#243650; color:var(--text); border:1px solid #344963; }
+    .control-action { display:flex; align-items:end; gap:8px; }
+    .control-action .btn { width:100%; min-height:42px; }
+    .grid { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(300px,.8fr); gap:18px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; min-width:0; }
+    .panel-head { padding:16px 18px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); }
+    .panel-head h2 { font-size:16px; margin:0; }
+    .panel-head p { margin:5px 0 0; color:var(--muted); font-size:12px; }
+    #map { height:430px; width:100%; background:#101a2b; }
+    .map-legend { display:flex; flex-wrap:wrap; gap:14px; padding:12px 18px; color:var(--muted); font-size:12px; }
+    .legend-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px; }
+    .side { display:grid; gap:18px; align-content:start; }
+    .metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; padding:14px; }
+    .metric { background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:14px; }
+    .metric span { display:block; color:var(--muted); font-size:12px; margin-bottom:8px; }
+    .metric strong { font-size:26px; letter-spacing:-.6px; }
+    .metric small { display:block; color:var(--muted); margin-top:5px; font-size:11px; }
+    .chart-box { padding:12px 16px 18px; height:250px; }
+    .table-wrap { overflow:auto; }
+    table { width:100%; border-collapse:collapse; min-width:850px; }
+    th, td { padding:12px 14px; border-bottom:1px solid var(--line); text-align:left; font-size:13px; white-space:nowrap; }
+    th { color:#b8c9e2; background:#142036; position:sticky; top:0; }
+    td { color:#dfe9f8; }
+    .flag { display:inline-block; border-radius:999px; padding:5px 8px; font-size:11px; font-weight:750; }
+    .flag.yes { background:rgba(255,114,114,.14); color:#ff9a9a; }
+    .flag.no { background:rgba(96,214,164,.12); color:#7de5b6; }
+    .table-tools { padding:14px 16px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center; }
+    .table-tools input { background:#0b1424; color:var(--text); border:1px solid var(--line); border-radius:9px; padding:10px 12px; min-width:230px; }
+    .pagination { display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; }
+    .chat { display:flex; flex-direction:column; height:380px; }
+    .chat-log { flex:1; overflow:auto; padding:14px; display:flex; flex-direction:column; gap:10px; }
+    .msg { max-width:95%; padding:10px 12px; border-radius:12px; line-height:1.5; font-size:13px; white-space:pre-wrap; }
+    .msg.bot { background:#1a2b42; align-self:flex-start; }
+    .msg.user { background:#1d5949; align-self:flex-end; }
+    .chat-form { display:flex; gap:8px; padding:12px; border-top:1px solid var(--line); }
+    .chat-form input { min-width:0; flex:1; background:#0b1424; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:11px; }
+    .notice { color:var(--muted); font-size:12px; line-height:1.55; padding:0 18px 16px; }
+    .section { margin-top:18px; }
+    .footer { color:var(--muted); text-align:center; font-size:12px; padding:28px 0 0; line-height:1.7; }
+    .hidden { display:none !important; }
+    @media(max-width:1050px) { .controls { grid-template-columns:repeat(3,minmax(0,1fr)); } .grid { grid-template-columns:1fr; } }
+    @media(max-width:650px) { .topbar { padding:12px 4%; } .status { display:none; } .hero { display:block; } .pill { display:inline-block; margin-top:12px; } .controls { grid-template-columns:repeat(2,minmax(0,1fr)); padding:12px; } .control-action { grid-column:span 2; } #map { height:340px; } .metrics { padding:10px; } .metric strong { font-size:22px; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">🌍</div>
+      <div>TerraWatch AI<small>Satellite NDVI anomaly screening</small></div>
+    </div>
+    <div class="status"><span class="dot" id="statusDot"></span><span id="statusText">Checking backend…</span></div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <h1>See the land.<br><span style="color:var(--accent)">Detect what changed.</span></h1>
+        <div class="sub">Explore NDVI observations, screen for unusual vegetation changes, export results, and ask the AI assistant to explain the findings.</div>
+      </div>
+      <div class="pill">NASA data integration · model screening · CSV export</div>
+    </section>
+
+    <section class="controls" aria-label="Data controls">
+      <div class="field">
+        <label for="area">Study area</label>
+        <select id="area">
+          <option value="Rajasthan">Rajasthan</option>
+          <option value="Jodhpur">Jodhpur district</option>
+          <option value="Baran">Baran district</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="startDate">Start date</label>
+        <input type="date" id="startDate" value="2020-01-01" />
+      </div>
+      <div class="field">
+        <label for="endDate">End date</label>
+        <input type="date" id="endDate" value="2025-12-31" />
+      </div>
+      <div class="field">
+        <label for="resolution">Satellite product</label>
+        <select id="resolution">
+          <option value="MOD13Q1.061">MODIS NDVI · 250 m · 16-day</option>
+        </select>
+      </div>
+      <div class="control-action">
+        <button class="btn primary" id="runBtn" onclick="runAnalysis()">Run analysis</button>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>Study area map</h2><p id="mapCaption">Map markers appear when backend results are available.</p></div>
+          <button class="btn secondary" onclick="refreshResults()">Refresh</button>
+        </div>
+        <div id="map" role="application" aria-label="Interactive map"></div>
+        <div class="map-legend">
+          <span><i class="legend-dot" style="background:#ff7272"></i>Flagged for review</span>
+          <span><i class="legend-dot" style="background:#60d6a4"></i>No large deviation</span>
+          <span><i class="legend-dot" style="background:#ffc766"></i>Limited history / uncertain</span>
+        </div>
+        <div class="notice">The base map is OpenStreetMap. Colored circles show backend result coordinates, not raw satellite pixels. A true satellite raster overlay requires the backend to provide georeferenced raster tiles or a suitable GeoJSON layer.</div>
+      </div>
+
+      <aside class="side">
+        <div class="panel">
+          <div class="panel-head"><div><h2>Analysis summary</h2><p>From the currently loaded results</p></div></div>
+          <div class="metrics">
+            <div class="metric"><span>Observations</span><strong id="totalMetric">—</strong><small>Loaded records</small></div>
+            <div class="metric"><span>Flagged</span><strong id="flagMetric">—</strong><small>Needs review</small></div>
+            <div class="metric"><span>Mean NDVI</span><strong id="meanMetric">—</strong><small>Valid observations</small></div>
+            <div class="metric"><span>Flag rate</span><strong id="rateMetric">—</strong><small>Of loaded records</small></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>NDVI trend</h2><p>Average NDVI by observation date</p></div></div>
+          <div class="chart-box"><canvas id="trendChart"></canvas></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="panel section">
+      <div class="panel-head">
+        <div><h2>Screening results</h2><p>Search, review, and export the currently loaded records.</p></div>
+        <button class="btn secondary" onclick="downloadCsv()">Export CSV</button>
+      </div>
+      <div class="table-tools">
+        <input id="searchBox" type="search" placeholder="Search date, location, reason…" oninput="renderTable()" aria-label="Search results" />
+        <div class="pagination">
+          <span id="pageInfo">No records</span>
+          <button class="btn secondary" onclick="changePage(-1)">Previous</button>
+          <button class="btn secondary" onclick="changePage(1)">Next</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Latitude</th><th>Longitude</th><th>NDVI</th><th>Baseline</th><th>Change</th><th>Review</th><th>Reason</th>
+          </tr></thead>
+          <tbody id="resultsBody"><tr><td colspan="8">No results loaded. Connect the Flask backend or upload a results CSV.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="table-tools">
+        <label class="field" style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px">
+          Load an existing results CSV
+          <input type="file" id="csvUpload" accept=".csv,text/csv" style="max-width:260px" onchange="loadUploadedCsv(event)" />
+        </label>
+        <span style="color:var(--muted);font-size:12px">Uploaded CSV stays in this browser session.</span>
+      </div>
+    </section>
+
+    <section class="panel section">
+      <div class="panel-head"><div><h2>Terra AI assistant</h2><p>Ask about loaded screening results or the analysis workflow.</p></div></div>
+      <div class="chat">
+        <div class="chat-log" id="chatLog">
+          <div class="msg bot">Hi! Load results first, then ask me what the NDVI changes may indicate. I will distinguish screening flags from confirmed causes.</div>
+        </div>
+        <form class="chat-form" id="chatForm">
+          <input id="chatInput" placeholder="e.g. Explain the flagged observations…" autocomplete="off" required />
+          <button class="btn primary" type="submit">Send</button>
+        </form>
+      </div>
+      <div class="notice">AI explanations depend on the connected backend. Do not treat anomaly flags as proof of drought, crop failure, or land degradation without independent validation.</div>
+    </section>
+
+    <div class="footer">TerraWatch AI · Prototype dashboard<br>NASA AppEEARS integration must be configured in the backend. Do not put Earthdata credentials in this HTML file.</div>
+  </main>
+
+  <script>
+    const API = ""; // same-origin Flask endpoints
+    let allResults = [];
+    let currentPage = 1;
+    const pageSize = 10;
+    let map, markersLayer, trendChart;
+
+    function setStatus(text, ok=false) {
+      document.getElementById("statusText").textContent = text;
+      document.getElementById("statusDot").style.background = ok ? "var(--accent)" : "var(--warning)";
+    }
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+      }[ch]));
+    }
+    function numberOrNull(value) {
+      if (value === null || value === undefined || value === "") return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+    function normalizeRow(row) {
+      const get = key => row[key] ?? row[key.toUpperCase()] ?? row[key.toLowerCase()];
+      return {
+        date: get("date") ?? "",
+        latitude: numberOrNull(get("latitude")),
+        longitude: numberOrNull(get("longitude")),
+        ndvi: numberOrNull(get("ndvi")),
+        baseline_ndvi: numberOrNull(get("baseline_ndvi")),
+        ndvi_change: numberOrNull(get("ndvi_change")),
+        review_flag: String(get("review_flag") ?? "false").toLowerCase() === "true" ||
+                     String(get("review_flag") ?? "false") === "1",
+        review_reason: get("review_reason") ?? "No reason supplied",
+        data_quality: get("data_quality") ?? ""
+      };
+    }
+    function initMap() {
+      map = L.map("map").setView([26.0, 73.0], 6);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 18, attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+      setTimeout(() => map.invalidateSize(), 150);
+    }
+    function renderMap() {
+      markersLayer.clearLayers();
+      const points = allResults.filter(r =>
+        Number.isFinite(r.latitude) && Number.isFinite(r.longitude) &&
+        Math.abs(r.latitude) <= 90 && Math.abs(r.longitude) <= 180
+      );
+      const latestByPoint = new Map();
+      points.forEach(r => {
+        const key = `${r.latitude.toFixed(4)},${r.longitude.toFixed(4)}`;
+        const old = latestByPoint.get(key);
+        if (!old || String(r.date) > String(old.date)) latestByPoint.set(key, r);
+      });
+      const bounds = [];
+      latestByPoint.forEach(r => {
+        const color = r.review_flag ? "#ff7272" : "#60d6a4";
+        const marker = L.circleMarker([r.latitude, r.longitude], {
+          radius: 7, color, fillColor: color, fillOpacity: .72, weight: 1.5
+        }).bindPopup(
+          `<b>${escapeHtml(r.review_flag ? "Flagged for review" : "No large deviation")}</b><br>` +
+          `Date: ${escapeHtml(r.date)}<br>NDVI: ${r.ndvi ?? "—"}<br>` +
+          `Baseline: ${r.baseline_ndvi ?? "—"}<br>${escapeHtml(r.review_reason)}`
+        );
+        marker.addTo(markersLayer);
+        bounds.push([r.latitude, r.longitude]);
+      });
+      if (bounds.length) map.fitBounds(bounds, {padding:[25,25], maxZoom:10});
+      document.getElementById("mapCaption").textContent =
+        `${latestByPoint.size} unique locations from loaded results.`;
+    }
+    function renderMetrics() {
+      const total = allResults.length;
+      const flagged = allResults.filter(r => r.review_flag).length;
+      const vals = allResults.map(r => r.ndvi).filter(Number.isFinite);
+      const mean = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : null;
+      document.getElementById("totalMetric").textContent = total.toLocaleString();
+      document.getElementById("flagMetric").textContent = flagged.toLocaleString();
+      document.getElementById("meanMetric").textContent = mean === null ? "—" : mean.toFixed(3);
+      document.getElementById("rateMetric").textContent = total ? `${(100*flagged/total).toFixed(1)}%` : "—";
+      const byDate = new Map();
+      allResults.forEach(r => {
+        if (!r.date || !Number.isFinite(r.ndvi)) return;
+        if (!byDate.has(r.date)) byDate.set(r.date, []);
+        byDate.get(r.date).push(r.ndvi);
+      });
+      const labels = [...byDate.keys()].sort();
+      const averages = labels.map(d => {
+        const a = byDate.get(d); return a.reduce((x,y)=>x+y,0)/a.length;
+      });
+      if (trendChart) trendChart.destroy();
+      trendChart = new Chart(document.getElementById("trendChart"), {
+        type: "line",
+        data: { labels, datasets: [{label:"Mean NDVI", data:averages, borderWidth:2, tension:.25, pointRadius:2}] },
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{labels:{color:"#b8c9e2"}}},
+          scales:{
+            x:{ticks:{color:"#9fb0ca",maxTicksLimit:6},grid:{color:"#263750"}},
+            y:{ticks:{color:"#9fb0ca"},grid:{color:"#263750"}, suggestedMin:-1, suggestedMax:1}
+          }
+        }
+      });
+    }
+    function renderTable() {
+      const q = document.getElementById("searchBox").value.trim().toLowerCase();
+      const filtered = allResults.filter(r =>
+        [r.date,r.latitude,r.longitude,r.ndvi,r.baseline_ndvi,r.ndvi_change,r.review_reason]
+          .some(v => String(v ?? "").toLowerCase().includes(q))
+      );
+      const pages = Math.max(1, Math.ceil(filtered.length/pageSize));
+      currentPage = Math.min(Math.max(1,currentPage), pages);
+      const start = (currentPage-1)*pageSize;
+      const rows = filtered.slice(start,start+pageSize);
+      document.getElementById("pageInfo").textContent =
+        filtered.length ? `${start+1}–${Math.min(start+pageSize,filtered.length)} of ${filtered.length}` : "No records";
+      const body = document.getElementById("resultsBody");
+      if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="8">No matching records.</td></tr>';
+        return;
+      }
+      body.innerHTML = rows.map(r => `<tr>
+        <td>${escapeHtml(r.date)}</td>
+        <td>${r.latitude ?? "—"}</td><td>${r.longitude ?? "—"}</td>
+        <td>${r.ndvi === null ? "—" : r.ndvi.toFixed(3)}</td>
+        <td>${r.baseline_ndvi === null ? "—" : r.baseline_ndvi.toFixed(3)}</td>
+        <td>${r.ndvi_change === null ? "—" : r.ndvi_change.toFixed(3)}</td>
+        <td><span class="flag ${r.review_flag ? "yes" : "no"}">${r.review_flag ? "Review" : "OK"}</span></td>
+        <td title="${escapeHtml(r.review_reason)}">${escapeHtml(r.review_reason)}</td>
+      </tr>`).join("");
+    }
+    function setResults(rows) {
+      allResults = rows.map(normalizeRow);
+      currentPage = 1;
+      renderMetrics();
+      renderMap();
+      renderTable();
+      setStatus(`Loaded ${allResults.length} records`, true);
+    }
+    async function refreshResults() {
+      try {
+        const res = await fetch(`${API}/api/results`, {headers:{"Accept":"application/json"}});
+        if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`);
+        const data = await res.json();
+        const rows = Array.isArray(data) ? data : (data.results || []);
+        setResults(rows);
+      } catch (err) {
+        setStatus("Backend not connected");
+        document.getElementById("mapCaption").textContent =
+          "Could not load /api/results. You can upload a results CSV below.";
+        console.warn(err);
+      }
+    }
+    async function runAnalysis() {
+      const start = document.getElementById("startDate").value;
+      const end = document.getElementById("endDate").value;
+      if (!start || !end || start > end) {
+        alert("Please choose a valid date range."); return;
+      }
+      const btn = document.getElementById("runBtn");
+      btn.disabled = true; btn.textContent = "Running…";
+      setStatus("Requesting analysis…");
+      try {
+        const res = await fetch(`${API}/api/run-analysis`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            area:document.getElementById("area").value,
+            start_date:start, end_date:end,
+            product:document.getElementById("resolution").value
+          })
+        });
+        const data = await res.json().catch(()=>({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (data.results) setResults(data.results);
+        else await refreshResults();
+        setStatus(data.message || "Analysis finished", true);
+      } catch (err) {
+        setStatus("Analysis unavailable");
+        alert("Analysis did not complete: " + err.message +
+          "\nCheck that the Flask backend and NASA integration are configured.");
+      } finally {
+        btn.disabled = false; btn.textContent = "Run analysis";
+      }
+    }
+    function changePage(delta) { currentPage += delta; renderTable(); }
+    function downloadCsv() {
+      if (!allResults.length) { alert("No results to export yet."); return; }
+      const columns = ["date","latitude","longitude","ndvi","baseline_ndvi","ndvi_change","review_flag","review_reason","data_quality"];
+      const quote = v => `"${String(v ?? "").replace(/"/g,'""')}"`;
+      const csv = [columns.join(","), ...allResults.map(r=>columns.map(c=>quote(r[c])).join(","))].join("\r\n");
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "terrawatch_results.csv"; a.click();
+      URL.revokeObjectURL(url);
+    }
+    function parseCsv(text) {
+      // CSV parser supporting quoted commas, quotes and newlines.
+      const rows = []; let row = [], field = "", quoted = false;
+      for (let i=0;i<text.length;i++) {
+        const ch = text[i];
+        if (quoted) {
+          if (ch === '"' && text[i+1] === '"') { field += '"'; i++; }
+          else if (ch === '"') quoted = false;
+          else field += ch;
+        } else if (ch === '"' && field === "") quoted = true;
+        else if (ch === ",") { row.push(field); field = ""; }
+        else if (ch === "\n") { row.push(field.replace(/\r$/,"")); rows.push(row); row=[]; field=""; }
+        else field += ch;
+      }
+      if (field.length || row.length) { row.push(field.replace(/\r$/,"")); rows.push(row); }
+      if (rows.length < 2) return [];
+      const headers = rows.shift().map(h=>h.trim().toLowerCase());
+      return rows.filter(r=>r.some(v=>v.trim()!=="")).map(r=>{
+        const obj={}; headers.forEach((h,i)=>obj[h]=r[i] ?? ""); return obj;
+      });
+    }
+    async function loadUploadedCsv(event) {
+      const file = event.target.files[0]; if (!file) return;
+      try {
+        const rows = parseCsv(await file.text());
+        if (!rows.length) throw new Error("No data rows found.");
+        setResults(rows);
+      } catch(err) { alert("Could not read CSV: "+err.message); }
+      event.target.value = "";
+    }
+    function addMessage(text, who) {
+      const node = document.createElement("div");
+      node.className = `msg ${who}`;
+      node.textContent = text;
+      const log = document.getElementById("chatLog");
+      log.appendChild(node); log.scrollTop = log.scrollHeight;
+    }
+    document.getElementById("chatForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const input = document.getElementById("chatInput");
+      const question = input.value.trim(); if (!question) return;
+      addMessage(question, "user"); input.value = "";
+      addMessage("Thinking…", "bot");
+      const log = document.getElementById("chatLog");
+      const thinking = log.lastElementChild;
+      try {
+        const res = await fetch(`${API}/api/explain`, {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            question,
+            summary:{
+              total:allResults.length,
+              flagged:allResults.filter(r=>r.review_flag).length,
+              mean_ndvi:allResults.length ? allResults.reduce((s,r)=>s+(r.ndvi ?? 0),0)/allResults.filter(r=>r.ndvi!==null).length : null,
+              sample:allResults.slice(0,50)
+            }
+          })
+        });
+        const data = await res.json().catch(()=>({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        thinking.textContent = data.answer || data.response || "The backend returned no answer.";
+      } catch(err) {
+        thinking.textContent = "AI backend is not connected yet. Please implement POST /api/explain in app.py. You can still inspect and export the loaded CSV results.";
+      }
+    });
+
+    initMap();
+    refreshResults();
+  </script>
+</body>
+</html>

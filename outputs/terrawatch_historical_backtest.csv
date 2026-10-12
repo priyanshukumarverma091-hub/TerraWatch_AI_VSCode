@@ -1,0 +1,5 @@
+target_year,pixels_tested,flagged_pixels,flagged_percent,median_absolute_deviation_from_baseline,note
+2018,3083,10,0.3243593902043464,0.015000000596046448,No ground-truth labels; not an accuracy metric
+2019,3083,119,3.859876743431722,0.019999995827674866,No ground-truth labels; not an accuracy metric
+2020,3083,76,2.4651313655530327,0.019999995827674866,No ground-truth labels; not an accuracy metric
+2021,3083,106,3.4382095361660716,0.02000001072883606,No ground-truth labels; not an accuracy metric
